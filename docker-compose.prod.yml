@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: taqueen_db_prod
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - taqueen_network_prod
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: taqueen_redis_prod
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - taqueen_network_prod
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: taqueen_backend_prod
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      SOCKET_CORS_ORIGIN: ${FRONTEND_URL}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - taqueen_network_prod
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: taqueen_frontend_prod
+    environment:
+      VITE_API_URL: ${BACKEND_URL}/api/v1
+      VITE_SOCKET_URL: ${BACKEND_URL}
+    networks:
+      - taqueen_network_prod
+    restart: always
+
+volumes:
+  postgres_data_prod:
+
+networks:
+  taqueen_network_prod:
+    driver: bridge
